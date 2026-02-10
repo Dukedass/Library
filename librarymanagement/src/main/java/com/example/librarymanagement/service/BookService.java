@@ -2,8 +2,11 @@ package com.example.librarymanagement.service;
 
 import com.example.librarymanagement.entity.Book;
 import com.example.librarymanagement.repository.BookRepository;
+import jakarta.persistence.OptimisticLockException;
 import jakarta.transaction.Transactional;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -34,11 +37,18 @@ public class BookService {
 	public Book updateBook(Long id, Book bookDetails) {
 		Book book = bookRepository.findById(id)
 				.orElseThrow(() -> new IllegalArgumentException("Book not found with id: " + id));
+		// For optimistic locking, set the version from the incoming details
 		book.setTitle(bookDetails.getTitle());
 		book.setAuthor(bookDetails.getAuthor());
 		book.setIsbn(bookDetails.getIsbn());
 		book.setAvailable(bookDetails.isAvailable());
-		return bookRepository.save(book);
+		book.setVersion(bookDetails.getVersion()); // Ensure version is set for optimistic locking
+
+		try {
+			return bookRepository.save(book);
+		} catch (OptimisticLockingFailureException | OptimisticLockException e) {
+			throw new OptimisticLockException("Concurrent update detected for book with id: " + id);
+		}
 	}
 
 	public void deleteBook(Long id) {
