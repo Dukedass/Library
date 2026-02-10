@@ -1,99 +1,163 @@
 package com.example.librarymanagement.controller;
 
 import com.example.librarymanagement.entity.Book;
-import com.example.librarymanagement.service.BookService;
+import com.example.librarymanagement.repository.BookRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.MockMvc;
-import java.util.List;
+
 import java.util.Optional;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+
+import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(BookController.class)
+@SpringBootTest
+@AutoConfigureMockMvc
+@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 class BookControllerTest {
 
 	@Autowired
 	private MockMvc mockMvc;
 
-	@MockBean
-	private BookService bookService;
+	@Autowired
+	private BookRepository bookRepository;
 
 	@Autowired
 	private ObjectMapper objectMapper;
 
 	private Book testBook;
 
-	@org.junit.jupiter.api.BeforeEach
-	void setUp() {
+	@BeforeEach
+	void setup() {
+		bookRepository.deleteAll();
 		testBook = new Book();
-		testBook.setId(1L);
-		testBook.setTitle("Test Book");
-		testBook.setAuthor("Test Author");
-		testBook.setIsbn("1234567890");
+		testBook.setTitle("Sample Book");
+		testBook.setAuthor("Author A");
+		testBook.setIsbn("ISBN-1234567890");
+		testBook.setAvailable(true);
+		bookRepository.save(testBook);
 	}
 
 	@Test
-    void createBook_Success() throws Exception {
-        when(bookService.createBook(any(Book.class))).thenReturn(testBook);
+	@DisplayName("POST /api/books - Success")
+	void createBook_Success() throws Exception {
+		Book newBook = new Book();
+		newBook.setTitle("New Book");
+		newBook.setAuthor("Author B");
+		newBook.setIsbn("ISBN-0987654321");
+		newBook.setAvailable(false);
 
-        mockMvc.perform(post("/api/books")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(testBook)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.title").value("Test Book"))
-                .andExpect(jsonPath("$.isbn").value("1234567890"));
-    }
+		mockMvc.perform(post("/api/books")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(newBook)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.id", notNullValue()))
+				.andExpect(jsonPath("$.title").value("New Book"))
+				.andExpect(jsonPath("$.author").value("Author B"))
+				.andExpect(jsonPath("$.isbn").value("ISBN-0987654321"))
+				.andExpect(jsonPath("$.available").value(false));
+	}
 
 	@Test
+	@DisplayName("POST /api/books - Validation Error")
+	void createBook_ValidationError() throws Exception {
+		Book invalidBook = new Book();
+		invalidBook.setTitle(""); // Invalid: blank title
+		invalidBook.setAuthor("A");
+		invalidBook.setIsbn(""); // Invalid: blank ISBN
+
+		mockMvc.perform(post("/api/books")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(invalidBook)))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.error", containsString("Validation Failed")));
+	}
+
+	@Test
+	@DisplayName("GET /api/books - List All")
 	void getAllBooks_Success() throws Exception {
-		Book book2 = new Book();
-		book2.setId(2L);
-		book2.setTitle("Book 2");
-		when(bookService.getAllBooks()).thenReturn(List.of(testBook, book2));
-
-		mockMvc.perform(get("/api/books")).andExpect(status().isOk())
-				.andExpect(jsonPath("$[0].title").value("Test Book")).andExpect(jsonPath("$[1].title").value("Book 2"));
+		mockMvc.perform(get("/api/books"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$", hasSize(1)))
+				.andExpect(jsonPath("$[0].title").value("Sample Book"));
 	}
 
 	@Test
-    void getBookById_Success() throws Exception {
-        when(bookService.getBookById(1L)).thenReturn(Optional.of(testBook));
-
-        mockMvc.perform(get("/api/books/1"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.title").value("Test Book"));
-    }
-
-	@Test
-    void getBookById_NotFound() throws Exception {
-        when(bookService.getBookById(999L)).thenReturn(Optional.empty());
-
-        mockMvc.perform(get("/api/books/999"))
-                .andExpect(status().isNotFound());
-    }
+	@DisplayName("GET /api/books/{id} - Found")
+	void getBookById_Found() throws Exception {
+		Long id = testBook.getId();
+		mockMvc.perform(get("/api/books/{id}", id))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.id").value(id))
+				.andExpect(jsonPath("$.title").value("Sample Book"));
+	}
 
 	@Test
+	@DisplayName("GET /api/books/{id} - Not Found")
+	void getBookById_NotFound() throws Exception {
+		mockMvc.perform(get("/api/books/{id}", 9999L))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.error", containsString("Resource Not Found")));
+	}
+
+	@Test
+	@DisplayName("PUT /api/books/{id} - Success")
 	void updateBook_Success() throws Exception {
-		Book updatedBook = new Book();
-		updatedBook.setTitle("Updated");
-		updatedBook.setAuthor("New Author");
-		updatedBook.setIsbn("1111111111");
-		when(bookService.updateBook(eq(1L), any(Book.class))).thenReturn(updatedBook);
+		Long id = testBook.getId();
+		Book updated = new Book();
+		updated.setTitle("Updated Title");
+		updated.setAuthor("Updated Author");
+		updated.setIsbn("ISBN-1234567890");
+		updated.setAvailable(false);
 
-		mockMvc.perform(put("/api/books/1").contentType(MediaType.APPLICATION_JSON)
-				.content(objectMapper.writeValueAsString(updatedBook))).andExpect(status().isOk())
-				.andExpect(jsonPath("$.title").value("Updated"));
+		mockMvc.perform(put("/api/books/{id}", id)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(updated)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.title").value("Updated Title"))
+				.andExpect(jsonPath("$.available").value(false));
 	}
 
 	@Test
+	@DisplayName("PUT /api/books/{id} - Not Found")
+	void updateBook_NotFound() throws Exception {
+		Book updated = new Book();
+		updated.setTitle("Updated Title");
+		updated.setAuthor("Updated Author");
+		updated.setIsbn("ISBN-0000000000");
+		updated.setAvailable(false);
+
+		mockMvc.perform(put("/api/books/{id}", 9999L)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(objectMapper.writeValueAsString(updated)))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.error", containsString("Resource Not Found")));
+	}
+
+	@Test
+	@DisplayName("DELETE /api/books/{id} - Success")
 	void deleteBook_Success() throws Exception {
-		mockMvc.perform(delete("/api/books/1")).andExpect(status().isNoContent());
+		Long id = testBook.getId();
+		mockMvc.perform(delete("/api/books/{id}", id))
+				.andExpect(status().isNoContent());
+		Optional<Book> deleted = bookRepository.findById(id);
+		assertFalse(deleted.isPresent());
+	}
+
+	@Test
+	@DisplayName("DELETE /api/books/{id} - Not Found")
+	void deleteBook_NotFound() throws Exception {
+		mockMvc.perform(delete("/api/books/{id}", 9999L))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.error", containsString("Resource Not Found")));
 	}
 }
