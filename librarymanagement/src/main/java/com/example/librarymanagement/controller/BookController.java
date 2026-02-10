@@ -1,6 +1,7 @@
 package com.example.librarymanagement.controller;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -56,7 +57,9 @@ public class BookController {
 	@GetMapping("/{id}")
 	public ResponseEntity<Book> getBookById(
 			@Parameter(description = "Book ID", required = true) @PathVariable Long id) {
-		return bookService.getBookById(id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
+		return bookService.getBookById(id)
+				.map(ResponseEntity::ok)
+				.orElseThrow(() -> new NoSuchElementException("Book not found with id: " + id));
 	}
 
 	@Operation(summary = "Update existing book", description = "Update book details by ID (title, author, ISBN, availability)")
@@ -67,6 +70,9 @@ public class BookController {
 			@Parameter(description = "Book ID to update", required = true) @PathVariable Long id,
 			@Parameter(description = "Updated book details") @Valid @RequestBody Book bookDetails) {
 		Book updatedBook = bookService.updateBook(id, bookDetails);
+		if (updatedBook == null) {
+			throw new NoSuchElementException("Book not found with id: " + id);
+		}
 		return ResponseEntity.ok(updatedBook);
 	}
 
@@ -76,7 +82,11 @@ public class BookController {
 	@DeleteMapping("/{id}")
 	public ResponseEntity<Void> deleteBook(
 			@Parameter(description = "Book ID to delete", required = true) @PathVariable Long id) {
-		bookService.deleteBook(id);
+		try {
+			bookService.deleteBook(id);
+		} catch (NoSuchElementException ex) {
+			throw new NoSuchElementException("Book not found with id: " + id);
+		}
 		return ResponseEntity.noContent().build();
 	}
 }
