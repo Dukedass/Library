@@ -12,15 +12,18 @@ public class Book {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank
+    @NotBlank(message = "Title must not be blank")
     private String title;
 
-    @NotBlank
+    @NotBlank(message = "Author must not be blank")
     private String author;
 
-    @NotBlank
+    @NotBlank(message = "ISBN must not be blank")
     @Column(unique = true)
     private String isbn;
 
     private boolean available = true;
+
+    @Version
+    private Long version;
 }
