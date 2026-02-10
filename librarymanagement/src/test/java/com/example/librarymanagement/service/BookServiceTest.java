@@ -2,12 +2,18 @@ package com.example.librarymanagement.service;
 
 import com.example.librarymanagement.entity.Book;
 import com.example.librarymanagement.repository.BookRepository;
+
+import jakarta.persistence.OptimisticLockException;
+
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.OptimisticLockingFailureException;
+
 import java.util.List;
 import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
@@ -112,6 +118,40 @@ class BookServiceTest {
                 () -> bookService.updateBook(999L, testBook));
 
         assertEquals("Book not found with id: 999", exception.getMessage());
+    }
+	
+	@Test
+    @DisplayName("updateBook throws OptimisticLockException when concurrent update occurs")
+    void updateBook_ThrowsOptimisticLockException() {
+        // Arrange
+        Long bookId = 1L;
+        Book existingBook = new Book();
+        existingBook.setId(bookId);
+        existingBook.setTitle("Old Title");
+        existingBook.setAuthor("Old Author");
+        existingBook.setIsbn("123");
+        existingBook.setAvailable(true);
+        existingBook.setVersion(1L);
+
+        Book updateDetails = new Book();
+        updateDetails.setTitle("New Title");
+        updateDetails.setAuthor("New Author");
+        updateDetails.setIsbn("123");
+        updateDetails.setAvailable(false);
+        updateDetails.setVersion(1L);
+
+        when(bookRepository.findById(bookId)).thenReturn(Optional.of(existingBook));
+        when(bookRepository.save(any(Book.class)))
+                .thenThrow(new OptimisticLockingFailureException("Simulated concurrent update"));
+
+        // Act & Assert
+        OptimisticLockException ex = assertThrows(
+                OptimisticLockException.class,
+                () -> bookService.updateBook(bookId, updateDetails)
+        );
+        assertTrue(ex.getMessage().contains("Concurrent update detected for book with id: " + bookId));
+        verify(bookRepository).findById(bookId);
+        verify(bookRepository).save(any(Book.class));
     }
 
 	@Test
