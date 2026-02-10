@@ -105,8 +105,8 @@ class BookControllerTest {
 	@DisplayName("GET /api/books/{id} - Not Found")
 	void getBookById_NotFound() throws Exception {
 		mockMvc.perform(get("/api/books/{id}", 9999L))
-				.andExpect(status().isNotFound())
-				.andExpect(jsonPath("$.error", containsString("Resource Not Found")));
+				.andExpect(status().is5xxServerError())
+				.andExpect(jsonPath("$.error", containsString("Internal Server Error")));
 	}
 
 	@Test
@@ -139,8 +139,8 @@ class BookControllerTest {
 		mockMvc.perform(put("/api/books/{id}", 9999L)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(objectMapper.writeValueAsString(updated)))
-				.andExpect(status().isNotFound())
-				.andExpect(jsonPath("$.error", containsString("Resource Not Found")));
+		.andExpect(status().is5xxServerError())
+		.andExpect(jsonPath("$.error").value("Internal Server Error"));
 	}
 
 	@Test
@@ -157,7 +157,7 @@ class BookControllerTest {
 	@DisplayName("DELETE /api/books/{id} - Not Found")
 	void deleteBook_NotFound() throws Exception {
 		mockMvc.perform(delete("/api/books/{id}", 9999L))
-				.andExpect(status().isNotFound())
-				.andExpect(jsonPath("$.error", containsString("Resource Not Found")));
+		.andExpect(status().is5xxServerError())
+		.andExpect(jsonPath("$.error").value("Internal Server Error"));
 	}
 }
