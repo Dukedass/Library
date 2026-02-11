@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.librarymanagement.entity.Book;
+import com.example.librarymanagement.exception.BookNotFoundException;
 import com.example.librarymanagement.service.BookService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -71,7 +72,7 @@ public class BookController {
 			@Parameter(description = "Updated book details") @Valid @RequestBody Book bookDetails) {
 		Book updatedBook = bookService.updateBook(id, bookDetails);
 		if (updatedBook == null) {
-			throw new NoSuchElementException("Book not found with id: " + id);
+			throw new BookNotFoundException("Book not found with id: " + id);
 		}
 		return ResponseEntity.ok(updatedBook);
 	}
@@ -84,8 +85,8 @@ public class BookController {
 			@Parameter(description = "Book ID to delete", required = true) @PathVariable Long id) {
 		try {
 			bookService.deleteBook(id);
-		} catch (NoSuchElementException ex) {
-			throw new NoSuchElementException("Book not found with id: " + id);
+		} catch (BookNotFoundException ex) {
+			throw new BookNotFoundException("Book not found with id: " + id);
 		}
 		return ResponseEntity.noContent().build();
 	}
